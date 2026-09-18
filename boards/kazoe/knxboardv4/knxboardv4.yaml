@@ -1,0 +1,15 @@
+identifier: knxboardv4
+name: KnxBoard V4
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram: 96
+flash: 512
+supported:
+  - gpio
+  - pwm
+  - counter
+  - i2c
+vendor: kazoe
