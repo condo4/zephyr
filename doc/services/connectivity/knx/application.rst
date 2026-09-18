@@ -15,6 +15,10 @@ their ETS parameters mean. That part is supplied by the application, as:
   structs that match exactly what the product's **ETS application
   program** declares.
 
+One board can carry several interchangeable applications this way. See
+:ref:`knx_knxboard` for a concrete example: a single carrier board with two
+different daughterboards, each its own Zephyr application.
+
 Directory layout
 *****************
 

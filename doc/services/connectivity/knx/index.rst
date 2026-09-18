@@ -193,3 +193,4 @@ of that surface.
 
    application.rst
    ncn5130.rst
+   knxboard.rst
