@@ -1,0 +1,172 @@
+/*
+ * KnxBoard V5 — KNX TP1 board, STM32G491KEU + onsemi NCN5130.
+ * Project: https://github.com/condo4/knxboard/tree/master
+ *
+ * Copyright (c) 2024 Klaus Nagel, <nagelkl01@gmail.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <st/g4/stm32g491Xe.dtsi>
+#include <st/g4/stm32g491k(c-e)ux-pinctrl.dtsi>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	model = "KnxBoard V5";
+	compatible = "kazoe,knxboardv5";
+
+	chosen {
+		zephyr,console = &usart2;
+		zephyr,shell-uart = &usart2;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,system-timer = &lptim1;
+		knx_prog_led = &knx_prog_led;
+	};
+
+	ncn5130: ncn5130 {
+		compatible = "onnn,ncn5130";
+		uart = <&lpuart1>;
+		status = "okay";
+	};
+
+	leds: leds {
+		compatible = "gpio-leds";
+
+		knx_prog_led: led_0 {
+			gpios = <&gpiof 1 GPIO_ACTIVE_HIGH>;
+			label = "KNX_PROG_LED";
+		};
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+		debounce-interval-ms = <50>;
+		knx_prog_btn: knx_prog_btn {
+			gpios = <&gpioa 0 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+			zephyr,code = <INPUT_KEY_0>;
+			label = "KNX Programming Button";
+		};
+	};
+
+	aliases {
+		led0 = &knx_prog_led;
+		sw0  = &knx_prog_btn;
+	};
+};
+
+&clk_lsi {
+	status = "okay";
+};
+
+&clk_hse {
+	hse-bypass;
+	clock-frequency = <DT_FREQ_M(16)>; /* 16MHz from NCN5130 */
+	status = "okay";
+};
+
+&lptim1 {
+	clocks = <&rcc STM32_CLOCK(APB1, 31)>,
+		 <&rcc STM32_SRC_LSI LPTIM1_SEL(1)>;
+	status = "okay";
+};
+
+/* System clock 128 MHz via PLL from 16 MHz HSE */
+&pll {
+	div-m = <1>;
+	mul-n = <16>;
+	div-p = <2>;
+	div-q = <2>;
+	div-r = <2>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&pll>;
+	clock-frequency = <DT_FREQ_M(128)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <8>;
+	apb2-prescaler = <8>;
+};
+
+&dma1 {
+	status = "okay";
+};
+
+&dmamux1 {
+	status = "okay";
+};
+
+/*
+ * KNX interface: NCN5130 connected to LPUART1 on PA2/PA3.
+ *
+ * The transceiver is strapped for 9-BIT UART (datasheet Table 9, p.27), so the
+ * DMA must move 16-bit items — one 9-bit character does not fit in a byte, and
+ * the USART's RDR/TDR must be accessed 16 bits wide when M0 = 1.
+ *
+ * This cannot be left to the driver: uart_stm32.c takes the DMA source/dest
+ * widths *only* from the channel-config cell below (UART_DMA_CHANNEL_INIT), and
+ * neither uart_stm32_async_rx_enable() nor uart_stm32_async_tx() overrides them
+ * from the configured data width.  With the default 8-bit widths the receiver
+ * silently drops every second octet (two characters are needed to fill one
+ * 2-byte buffer, and only the first is returned) and the transmitter emits the
+ * parity byte as a separate character — which the NCN5130 reports back as
+ * U_State.ind "rx_err".
+ */
+&lpuart1 {
+	dmas = <&dmamux1 2 0x23 (STM32_DMA_PERIPH_TX | STM32_DMA_MEM_16BITS |
+				 STM32_DMA_PERIPH_16BITS)>,
+	       <&dmamux1 1 0x22 (STM32_DMA_PERIPH_RX | STM32_DMA_MEM_16BITS |
+				 STM32_DMA_PERIPH_16BITS)>;
+	dma-names = "tx", "rx";
+	pinctrl-0 = <&lpuart1_tx_pa2 &lpuart1_rx_pa3>;
+	pinctrl-names = "default";
+	current-speed = <38400>;
+	status = "okay";
+};
+
+/*
+ * Debug console: USART2 on PB3(TX)/PA15(RX).
+ *
+ * RX is PA15, not PB4: the schematic wires IC1 pad 25 (= PA15 on UFQFPN32,
+ * net DEBUG_RX) to the header, and PB4 goes nowhere. Declaring
+ * usart2_rx_pb4 left shell input dead while TX worked, which is why the
+ * mismatch went unnoticed for so long.
+ */
+&usart2 {
+	pinctrl-0 = <&usart2_tx_pb3 &usart2_rx_pa15>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+&timers4 {
+	st,prescaler = <10000>;
+	status = "okay";
+
+	pwm4: pwm {
+		status = "okay";
+		pinctrl-0 = <&tim4_ch3_pb8>;
+		pinctrl-names = "default";
+	};
+};
+
+&i2c2 {
+	status = "disabled";
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* 4 KB NVS storage at the last page of the 128 KB flash */
+		storage_partition: partition@1f000 {
+			label = "storage";
+			reg = <0x0001f000 DT_SIZE_K(4)>;
+		};
+	};
+};

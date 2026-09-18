@@ -378,6 +378,7 @@ jlc	Shenzhen JLC Technology Group Co., Ltd.
 kaga-fei	KAGA FEI Co., Ltd.
 kam	Kamstrup A/S
 karo	Ka-Ro electronics GmbH
+kazoe	KaZoe
 keithkoep	Keith & Koep GmbH
 keymile	Keymile GmbH
 khadas	Khadas

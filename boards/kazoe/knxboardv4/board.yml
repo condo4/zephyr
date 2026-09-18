@@ -1,0 +1,6 @@
+board:
+  name: knxboardv4
+  full_name: KnxBoard V4
+  vendor: kazoe
+  socs:
+    - name: stm32g491xx
